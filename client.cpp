@@ -8,6 +8,8 @@
 
 #include "util.h"
 
+#define BUFFER_SIZE 1024
+
 int main(){
     int ret;
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -26,7 +28,9 @@ int main(){
     errif(ret == -1, "socket connect error");
 
     while(true){
-        char buf[1024];
+        // 在这个版本中，buf 大小必须大于等于服务器端 buf 大小，不然会出错
+        // todo: why?
+        char buf[BUFFER_SIZE];
         bzero(&buf, sizeof(buf));
         scanf("%s", buf);
         ssize_t write_bytes = write(sockfd, buf, sizeof(buf));

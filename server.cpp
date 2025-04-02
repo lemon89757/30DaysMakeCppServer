@@ -2,11 +2,23 @@
 // #include <string.h>
 #include <cstring>
 #include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/epoll.h>
 
 #include "util.h"
+
+#define MAX_EVENTS 1024
+#define READ_BUFFER 1024
+
+void setnonblocking(int fd){
+    // 在这里没有错误处理，todo
+    int status = fcntl(fd, F_GETFL);
+    fcntl(fd, F_SETFL, status | O_NONBLOCK);
+}
 
 int main(){
     int ret;
@@ -31,32 +43,77 @@ int main(){
     ret = listen(sockfd, SOMAXCONN);
     errif(ret == -1, "socket listen error");
 
-    struct sockaddr_in client_addr;
-    socklen_t client_addr_len = sizeof(client_addr);
-    bzero(&client_addr, sizeof(client_addr));
+    // open an epoll file description
+    int epfd = epoll_create1(0);
+    errif(epfd == -1, "epoll create error");
 
-    // 此时获取到的客户端 socket fd 本质上与客户端本身的 socket fd 不是同一个
-    // 但是它们指向同一个 tcp 连接
-    // 它们分别位于不同的进程中，所以不是同一个 fd（每个进程有自己的文件打开表）
-    // 因此在服务器端关闭的客户端 socket fd，也不是关闭了客户端的 socket fd
-    int client_sockfd = accept(sockfd, (sockaddr*)&client_addr, &client_addr_len);
-    errif(client_sockfd == -1, "socket accept error");
-    printf("new client fd %d! IP: %s Port %d\n", client_sockfd, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+    struct epoll_event events[MAX_EVENTS], ev;
+    bzero(&events, sizeof(events));
+    bzero(&ev, sizeof(ev));
+    ev.data.fd = sockfd;
+    // epoll 默认采用 LT 触发方式，即水平触发。只要 fd 上有事件，就会一直通知内核
+    // ET 模式，即边缘触发。fd 从无事件到有事件的变化会通知内核一次，之后就不再通知内核
+    // 实际上，接收连接最好不要用 ET 模式
+    ev.events = EPOLLIN | EPOLLET;
+    setnonblocking(sockfd);
+    // this system call is used to add, modify, or remove entries in the 
+    // interest list of epoLL() instance refered to by the file descriptor epfd.
+    // EPOLL_CTL_ADD: add an entry to the interest list of the epoll file descriptor, epfd.
+    // the entry includes the file descriptor, fd, a reference to the corresponding open file description,
+    // and settings specified in event.
+    ret = epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &ev);
+    errif(ret == -1, "epoll add an entry error");
 
     while(true){
-        char buf[1024];
-        bzero(&buf, sizeof(buf));
-        ssize_t read_bytes = read(client_sockfd, buf, sizeof(buf));
-        if(read_bytes > 0){
-            printf("message from client fd %d: %s\n", client_sockfd, buf);
-            write(client_sockfd, buf, sizeof(buf));
-        }else if(read_bytes == 0){
-            printf("client fd %d disconnected\n", client_sockfd);
-            close(client_sockfd);
-            break;
-        }else if(read_bytes == -1){
-            close(client_sockfd);
-            errif(true, "socket read error");
+        int nfds = epoll_wait(epfd, events, MAX_EVENTS, -1);
+        errif(nfds == - 1, "epoll wait error");
+        for(int i = 0; i < nfds; i++){
+            if(events[i].data.fd == sockfd){
+                /* 新客户端连接 */
+                struct sockaddr_in client_addr;
+                bzero(&client_addr, sizeof(client_addr));
+                socklen_t client_addr_len = sizeof(client_addr);
+
+                int client_sockfd = accept(sockfd, (sockaddr*)&client_addr, &client_addr_len);
+                errif(client_sockfd == -1, "socket accept error");
+                printf("new client fd %d! IP: %s Port: %d\n", client_sockfd, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+
+                bzero(&ev, sizeof(ev));
+                ev.data.fd = client_sockfd;
+                ev.events = EPOLLIN | EPOLLET;
+                setnonblocking(client_sockfd);
+                ret = epoll_ctl(epfd, EPOLL_CTL_ADD, client_sockfd, &ev);
+                errif(ret == -1, "epoll add an entry error");
+            }else if(events[i].events & EPOLLIN){
+                /* 可读事件 */
+                char buf[READ_BUFFER];
+                while(true){
+                    // 由于使用非阻塞 I/O，读取客户端 buffer，一次读取 buf 大小数据，直到全部读取完毕
+                    bzero(&buf, sizeof(buf));
+                    ssize_t read_bytes = read(events[i].data.fd, buf, sizeof(buf));
+                    if(read_bytes > 0){
+                        printf("message from client fd %d: %s\n", events[i].data.fd, buf);
+                        write(events[i].data.fd, buf, sizeof(buf));
+                    }else if(read_bytes == -1 && errno == EINTR){
+                        // 客户端正常中断，继续读取
+                        printf("continue reading");
+                        continue;
+                    }else if(read_bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)){
+                        // 非阻塞 I/O，这个条件表示数据全部读取完毕
+                        printf("finish reading once, errno: %d\n", errno);
+                        break;
+                    }else if(read_bytes == 0){
+                        // EOF，客户端断开连接
+                        printf("EOF, client fd %d disconnected\n", events[i].data.fd);
+                        // 关闭 socket 会自动将文件描述符从 epoll 树上移除
+                        close(events[i].data.fd);
+                        break;
+                    }
+                }
+            }else{
+                // 其他事件，之后的版本实现
+                printf("something else happened\n");
+            }
         }
     }
     
