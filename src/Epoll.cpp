@@ -15,7 +15,7 @@ Epoll::Epoll() : epfd(-1), events(nullptr){
 }
 
 Epoll::~Epoll(){
-    if(-1 == epfd){
+    if(-1 != epfd){
         close(epfd);
         epfd = -1;
     }
