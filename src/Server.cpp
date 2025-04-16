@@ -8,27 +8,18 @@
 #include "Socket.h"
 #include "InetAddress.h"
 #include "Channel.h"
+#include "Acceptor.h"
 
 #define READ_BUFFER 1024
 
 Server::Server(EventLoop* _loop) : loop(_loop){
-    Socket* server_sock = new Socket();
-    InetAddress* server_addr = new InetAddress("127.0.0.1", 8888);
-    server_sock->bind(server_addr);
-    server_sock->listen();
-    server_sock->setnonblocking();
-
-    Channel* serverChanenl = new Channel(loop, server_sock->getFd());
-    // std::bind 用于创建一个可调用对象（函数对象）。它允许将一个函数（或成员函数）和它的参数绑定在一起，生成一个新的可调用对象，这个对象可以在稍后被调用时执行原始函数。
-    // 下述语句的作用是：创建一个可调用对象，这个对象绑定了 Server 类的成员函数 newConnection，并将其第一个参数 server_sock 绑定到当前的 Socket 对象
-    // 当这个可调用对象被调用时，它会调用 Server 类的成员函数 newConnection，并将 server_sock 作为参数传递给它
-    std::function<void()> cb = std::bind(&Server::newConnection, this, server_sock);
-    serverChanenl->setCallback(cb);
-    serverChanenl->enableReading();
+    acceptor = new Acceptor(loop);
+    std::function<void(Socket*)> cb = std::bind(&Server::newConnection, this, std::placeholders::_1);
+    acceptor->setNewConnectionCallback(cb);
 }
 
 Server::~Server(){
-
+    delete acceptor;
 }
 
 void Server::handleReadEvent(int sockfd){
