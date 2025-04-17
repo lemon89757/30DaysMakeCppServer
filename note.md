@@ -95,3 +95,6 @@
      3. 这个类也通过一个独有的 `Channel` 负责分发到 `epoll`，该 `Channel` 的事件处理函数 `handleEvent()` 会调用 `Acceptor` 中的接受连接函数来新建一个 `TCP` 连接。
    * 新的 `TCP` 连接应该由 `Server` 类来创建并管理生命周期，而不是 `Acceptor`（此时 `Acceptor` 更多的是充当消息传递的角色）；同时将处理连接的逻辑代码放在 `Server` 类里也并没有打破服务器的通用性，因为对于所有服务器，都要使用 `Acceptor` 来建立连接。为了实现这一设计，可以用两种方式：1. 使用传统的虚类、虚函数来设计一个接口； 2. C++ 11 的特性：`std::function, std::bind, 右值引用, std::move` 等实现**函数回调**。（*虚函数使用起来比较繁琐，程序的可读性也不够明朗，而 `std::function, std::bind` 等新标准的出现可以完全替代虚函数*）
    * 至此，`Server` 类主要是 实际用于处理连接的业务逻辑和处理其他事件的业务逻辑，而其他跟连接相关的内容交由 `Acceptor` 来处理，`Server` 具有 `Acceptor` 类型对象。
+
+## Day 8
+1. 通过 `Connection` 类来处理、记录和管理通过 `TCP` 连接的客户端。它与 `Acceptor` 类是平行关系，都直接由 `Server` 管理，由一个 `Channel` 分发到 epoll, 通过回调函数处理相应事件。

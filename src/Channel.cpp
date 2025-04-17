@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 #include "Channel.h"
 #include "EventLoop.h"
 
@@ -7,7 +9,10 @@ events(0), revents(0), inEpoll(false){
 }
 
 Channel::~Channel(){
-
+    if(-1 != fd){
+        close(fd);
+        fd = -1;
+    }
 }
 
 void Channel::handleEvent(){
