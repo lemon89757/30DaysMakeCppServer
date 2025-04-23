@@ -5,7 +5,8 @@
 #include "InetAddress.h"
 #include "Channel.h"
 
-Acceptor::Acceptor(EventLoop* _loop) : loop(_loop){
+Acceptor::Acceptor(EventLoop* _loop) : 
+        loop(_loop), sock(nullptr), acceptChannel(nullptr){
     sock = new Socket();
     InetAddress* addr = new InetAddress("127.0.0.1", 1234);
     sock->bind(addr);

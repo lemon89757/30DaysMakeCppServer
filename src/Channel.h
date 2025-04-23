@@ -9,7 +9,7 @@ class EventLoop;
  */
 class Channel{
 private:
-    EventLoop* loop;      // 被监听文件描述符所对应的 Epoll 实例
+    EventLoop* loop;    
     int fd;             // 被监听的文件描述符
     uint32_t events;    // 表示希望监听该文件描述符的哪些事件
     uint32_t revents;   // 表示在 epoll 返回该 Channel 时文件描述符正在发生的事件

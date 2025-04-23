@@ -32,6 +32,7 @@ void Socket::bind(InetAddress* _addr){
     // 而不是类中的其他同名函数
     err = ::bind(fd, (sockaddr*)&addr, addr_len);
     errif(-1 == err, "socket bind error");
+    _addr->setInetAddr(addr, addr_len);
 }
 
 void Socket::listen(){
@@ -53,6 +54,14 @@ int Socket::accept(InetAddress* _addr){
     errif(-1 == client_fd, "socket accept error");
     _addr->setInetAddr(addr, addr_len);
     return client_fd;
+}
+
+void Socket::connect(InetAddress* _addr){
+    int ret;
+    struct sockaddr_in addr = _addr->getAddr();
+    socklen_t addr_len = _addr->getAddr_len();
+    ret = ::connect(fd, (sockaddr*)&addr, addr_len);
+    errif(-1 == ret, "socket connect error");
 }
 
 int Socket::getFd(){
