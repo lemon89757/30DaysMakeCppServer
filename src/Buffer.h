@@ -13,4 +13,5 @@ public:
     void clear();
     void getLine();
     void append(const char* _str, int size);
+    void setBuf(const char*);
 };

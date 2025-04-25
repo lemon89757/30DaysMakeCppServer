@@ -44,18 +44,3 @@ ThreadPool::~ThreadPool(){
         if(th.joinable()) th.join();
     }
 }
-
-/* 线程池只能接受 std::function<void()> 类型参数， 
- * 所以函数参数需要事先使用 std::bind()，并且无法得到返回值
- */
-void ThreadPool::add(std::function<void()> func){
-    {
-        std::unique_lock<std::mutex> lock(task_mutex);
-        if(stop){
-            throw std::runtime_error("ThreadPool already stop, can't add task any more");
-        }
-        tasks.emplace(func);
-    }
-    // 通知一次条件变量
-    cv.notify_one();
-}
