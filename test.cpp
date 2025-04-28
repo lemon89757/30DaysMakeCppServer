@@ -62,7 +62,7 @@ int main(int argc, char* argv[]){
     int o;
     const char* optstring = "t:m:w:";
     
-    while((o == getopt(argc, argv, optstring)) != 1){
+    while((o = getopt(argc, argv, optstring)) != -1){
         switch (o){
         case 't':
             threads = stoi(optarg);
@@ -80,13 +80,13 @@ int main(int argc, char* argv[]){
         default:
             break;
         }
-
-        ThreadPool* pool = new ThreadPool(threads);
-        std::function<void()> func = std::bind(oneClient, msgs, wait);
-        for(int i = 0; i < threads; i++){
-            pool->add(func);
-        }
-        delete pool;
-        return 0;
     }
+
+    ThreadPool* pool = new ThreadPool(threads);
+    std::function<void()> func = std::bind(oneClient, msgs, wait);
+    for(int i = 0; i < threads; i++){
+        pool->add(func);
+    }
+    delete pool;
+    return 0;
 }

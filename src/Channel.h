@@ -12,25 +12,30 @@ private:
     EventLoop* loop;    
     int fd;             // 被监听的文件描述符
     uint32_t events;    // 表示希望监听该文件描述符的哪些事件
-    uint32_t revents;   // 表示在 epoll 返回该 Channel 时文件描述符正在发生的事件
+    uint32_t ready;
     bool inEpoll;       // 标志位，是否已被 epoll 对象监测
+    bool useThreadPool;
     // std::function 是一个泛型函数封装器，可以存储、调用和管理任何可调用对象
     // 例如普通函数、Lambda 表达式、函数对象等
-    std::function<void()> callback;
+    std::function<void()> readCallback;
+    std::function<void()> writeCallback;
 
 public:
     Channel(EventLoop*_loop, int _fd);
     ~Channel();
 
     void handleEvent();
-    void enableReading();
+    void enableRead();
 
     int getFd();
     uint32_t getEvents();
-    uint32_t getRevents();
+    uint32_t getReady();
     bool getInEpoll();
-    void setInEpoll();
+    void setInEpoll(bool _in = true);
+    // 是否使用上升沿触发
+    void useET();
 
-    void setRevents(uint32_t);
-    void setCallback(std::function<void()>);
+    void setReady(uint32_t);
+    void setReadCallback(std::function<void()>);
+    void setUseThreadPool(bool use = true);
 };
